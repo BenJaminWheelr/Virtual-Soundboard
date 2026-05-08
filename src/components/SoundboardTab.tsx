@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { gridDimensionOptions } from "../soundboardState";
 import type { GridSize, SoundboardCell, UploadedClip } from "../types";
 
@@ -28,7 +28,33 @@ function SoundboardTab({
   onSelectCell,
 }: SoundboardTabProps) {
   const [setupOpen, setSetupOpen] = useState(false);
+  const drawerRef = useRef<HTMLElement | null>(null);
+  const shouldFocusDrawerRef = useRef(false);
   const selectedCell = cells.find((cell) => cell.id === selectedCellId) ?? cells[0];
+
+  useEffect(() => {
+    if (!setupOpen || !shouldFocusDrawerRef.current) {
+      return;
+    }
+
+    shouldFocusDrawerRef.current = false;
+    drawerRef.current?.focus();
+  }, [setupOpen]);
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key.toLowerCase() !== "q" || isEditingElement(event.target)) {
+        return;
+      }
+
+      event.preventDefault();
+      shouldFocusDrawerRef.current = true;
+      setSetupOpen((isOpen) => !isOpen);
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   return (
     <section className={setupOpen ? "soundboard-layout drawer-open" : "soundboard-layout"}>
@@ -36,6 +62,7 @@ function SoundboardTab({
         aria-label={setupOpen ? "Close soundboard setup" : "Open soundboard setup"}
         aria-expanded={setupOpen}
         className="drawer-toggle"
+        tabIndex={-1}
         type="button"
         onClick={() => setSetupOpen((isOpen) => !isOpen)}
       >
@@ -53,131 +80,137 @@ function SoundboardTab({
         />
       )}
 
-      <aside className="panel soundboard-drawer">
-        <h2>Soundboard Setup</h2>
-        <div className="field-pair">
-          <label>
-            Rows
-            <select
-              value={gridSize.rows}
-              onChange={(event) =>
-                onGridSizeChange({ ...gridSize, rows: Number(event.target.value) })
-              }
-            >
-              {gridDimensionOptions.map((dimension) => (
-                <option key={dimension} value={dimension}>
-                  {dimension}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label>
-            Columns
-            <select
-              value={gridSize.cols}
-              onChange={(event) =>
-                onGridSizeChange({ ...gridSize, cols: Number(event.target.value) })
-              }
-            >
-              {gridDimensionOptions.map((dimension) => (
-                <option key={dimension} value={dimension}>
-                  {dimension}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-
-        {selectedCell && (
-          <div className="cell-editor">
-            <h3>Selected Cell</h3>
+      {setupOpen && (
+        <aside
+          ref={drawerRef}
+          className="panel soundboard-drawer"
+          tabIndex={-1}
+        >
+          <h2 className="drawer-title">Soundboard Setup</h2>
+          <div className="field-pair">
             <label>
-              Text
-              <input
-                value={selectedCell.label}
-                onChange={(event) =>
-                  onCellChange({ ...selectedCell, label: event.target.value })
-                }
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.currentTarget.blur();
-                  }
-                }}
-              />
-            </label>
-            <label>
-              Audio clip
+              Rows
               <select
-                value={selectedCell.clipId}
+                value={gridSize.rows}
                 onChange={(event) =>
-                  onCellChange({ ...selectedCell, clipId: event.target.value })
+                  onGridSizeChange({ ...gridSize, rows: Number(event.target.value) })
                 }
               >
-                <option value="">No clip assigned</option>
-                {uploadedClips.map((clip) => (
-                  <option key={clip.id} value={clip.id}>
-                    {clip.name}
+                {gridDimensionOptions.map((dimension) => (
+                  <option key={dimension} value={dimension}>
+                    {dimension}
                   </option>
                 ))}
               </select>
             </label>
-            <button
-              className="secondary-button"
-              onClick={() => onCellChange({ ...selectedCell, clipId: "" })}
-            >
-              Remove Clip
-            </button>
-            <label>
-              Clip volume
-              <div className="range-field">
-                <input
-                  min="0.01"
-                  max="1"
-                  step="0.01"
-                  type="range"
-                  value={selectedCell.volume}
-                  onChange={(event) =>
-                    onCellChange({
-                      ...selectedCell,
-                      volume: Number(event.target.value),
-                    })
-                  }
-                />
-                <output>{selectedCell.volume.toFixed(2)}</output>
-              </div>
-            </label>
-            <label>
-              Hotkey
-              <input
-                placeholder="Press a key"
-                readOnly
-                value={selectedCell.hotkey}
-                onKeyDown={(event) => {
-                  event.preventDefault();
-                  if (event.key === "Enter") {
-                    event.currentTarget.blur();
-                    return;
-                  }
 
-                  const hotkey = formatHotkey(event.nativeEvent);
-                  if (hotkey) {
-                    onCellChange({ ...selectedCell, hotkey });
-                    event.currentTarget.blur();
-                  }
-                }}
-              />
+            <label>
+              Columns
+              <select
+                value={gridSize.cols}
+                onChange={(event) =>
+                  onGridSizeChange({ ...gridSize, cols: Number(event.target.value) })
+                }
+              >
+                {gridDimensionOptions.map((dimension) => (
+                  <option key={dimension} value={dimension}>
+                    {dimension}
+                  </option>
+                ))}
+              </select>
             </label>
-            <button
-              className="secondary-button"
-              disabled={!selectedCell.hotkey}
-              onClick={() => onCellChange({ ...selectedCell, hotkey: "" })}
-            >
-              Remove Keybind
-            </button>
           </div>
-        )}
-      </aside>
+
+          {selectedCell && (
+            <div className="cell-editor">
+              <h3>Selected Cell</h3>
+              <label>
+                Text
+                <input
+                  value={selectedCell.label}
+                  onChange={(event) =>
+                    onCellChange({ ...selectedCell, label: event.target.value })
+                  }
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.currentTarget.blur();
+                    }
+                  }}
+                />
+              </label>
+              <label>
+                Audio clip
+                <select
+                  value={selectedCell.clipId}
+                  onChange={(event) =>
+                    onCellChange({ ...selectedCell, clipId: event.target.value })
+                  }
+                >
+                  <option value="">No clip assigned</option>
+                  {uploadedClips.map((clip) => (
+                    <option key={clip.id} value={clip.id}>
+                      {clip.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button
+                className="secondary-button"
+                onClick={() => onCellChange({ ...selectedCell, clipId: "" })}
+              >
+                Remove Clip
+              </button>
+              <label>
+                Clip volume
+                <div className="range-field">
+                  <input
+                    min="0.01"
+                    max="1"
+                    step="0.01"
+                    type="range"
+                    value={selectedCell.volume}
+                    onChange={(event) =>
+                      onCellChange({
+                        ...selectedCell,
+                        volume: Number(event.target.value),
+                      })
+                    }
+                  />
+                  <output>{selectedCell.volume.toFixed(2)}</output>
+                </div>
+              </label>
+              <label>
+                Hotkey
+                <input
+                  placeholder="Press a key"
+                  readOnly
+                  value={selectedCell.hotkey}
+                  onKeyDown={(event) => {
+                    event.preventDefault();
+                    if (event.key === "Enter") {
+                      event.currentTarget.blur();
+                      return;
+                    }
+
+                    const hotkey = formatHotkey(event.nativeEvent);
+                    if (hotkey) {
+                      onCellChange({ ...selectedCell, hotkey });
+                      event.currentTarget.blur();
+                    }
+                  }}
+                />
+              </label>
+              <button
+                className="secondary-button"
+                disabled={!selectedCell.hotkey}
+                onClick={() => onCellChange({ ...selectedCell, hotkey: "" })}
+              >
+                Remove Keybind
+              </button>
+            </div>
+          )}
+        </aside>
+      )}
 
       <section
         className="soundboard-grid"
@@ -198,20 +231,14 @@ function SoundboardTab({
                   onPlayCell(cell);
                 }
               }}
+              onFocus={() => onSelectCell(cell.id)}
               onKeyDown={(event) => {
-                if (event.key === " ") {
-                  event.preventDefault();
-                  onSelectCell(cell.id);
-                  setSetupOpen((isOpen) => !isOpen);
-                  return;
-                }
-
                 if (event.key === "Enter") {
                   event.preventDefault();
                 }
               }}
               onKeyUp={(event) => {
-                if (event.key === " " || event.key === "Enter") {
+                if (event.key === "Enter") {
                   event.preventDefault();
                 }
               }}
@@ -227,6 +254,14 @@ function SoundboardTab({
       </section>
     </section>
   );
+}
+
+function isEditingElement(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+
+  return ["INPUT", "SELECT", "TEXTAREA"].includes(target.tagName) || target.isContentEditable;
 }
 
 function formatHotkey(event: KeyboardEvent | React.KeyboardEvent) {

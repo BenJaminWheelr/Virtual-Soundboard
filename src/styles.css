@@ -447,6 +447,10 @@ dd {
   transition: transform 180ms ease;
 }
 
+.drawer-title {
+  text-align: center;
+}
+
 .drawer-open .soundboard-drawer {
   transform: translateX(0);
 }

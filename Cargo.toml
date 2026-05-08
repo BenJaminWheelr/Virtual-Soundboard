@@ -5,4 +5,6 @@ edition = "2024"
 
 [dependencies]
 cpal = "0.17.3"
+hound = "3.5"
+minimp3 = "0.5"
 ringbuf = "0.4"

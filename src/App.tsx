@@ -47,6 +47,7 @@ function App() {
   const [layoutLoaded, setLayoutLoaded] = useState(false);
   const [initialDataLoaded, setInitialDataLoaded] = useState(false);
   const [message, setMessage] = useState("Backend idle");
+  const [earRapeEnabled, setEarRapeEnabled] = useState(false);
   const [micTestLevel, setMicTestLevel] = useState(0);
   const [micTestRunning, setMicTestRunning] = useState(false);
   const [monitorClipPlayback, setMonitorClipPlayback] = useState(true);
@@ -104,6 +105,7 @@ function App() {
     return () => window.clearTimeout(saveTimeout);
   }, [
     cells,
+    earRapeEnabled,
     gridSize,
     monitorClipPlayback,
     selectedInput,
@@ -165,6 +167,7 @@ function App() {
             Array.isArray(savedLayout.cells) ? savedLayout.cells : [],
           ),
         );
+        changeEarRapeEnabled(savedLayout.ear_rape_enabled ?? false, false);
         changeMonitorClipPlayback(savedLayout.monitor_clip_playback ?? true, false);
         setSelectedInput(savedLayout.selected_input ?? "");
         setSelectedMonitorOutput(savedLayout.selected_monitor_output ?? "");
@@ -182,6 +185,7 @@ function App() {
         layout: {
           grid_size: gridSize,
           cells,
+          ear_rape_enabled: earRapeEnabled,
           monitor_clip_playback: monitorClipPlayback,
           selected_input: selectedInput,
           selected_monitor_output: selectedMonitorOutput,
@@ -214,6 +218,19 @@ function App() {
       await invoke("set_monitor_clip_playback", { enabled });
       if (saveImmediately && layoutLoaded) {
         saveSoundboardLayout({ monitor_clip_playback: enabled });
+      }
+    } catch (error) {
+      setMessage(formatError(error));
+    }
+  }
+
+  async function changeEarRapeEnabled(enabled: boolean, saveImmediately = true) {
+    setEarRapeEnabled(enabled);
+
+    try {
+      await invoke("set_ear_rape_enabled", { enabled });
+      if (saveImmediately && layoutLoaded) {
+        saveSoundboardLayout({ ear_rape_enabled: enabled });
       }
     } catch (error) {
       setMessage(formatError(error));
@@ -502,7 +519,9 @@ function App() {
 
           {activeTab === "config" && (
             <ConfigTab
+              earRapeEnabled={earRapeEnabled}
               monitorClipPlayback={monitorClipPlayback}
+              onEarRapeEnabledChange={changeEarRapeEnabled}
               onMonitorClipPlaybackChange={changeMonitorClipPlayback}
             />
           )}

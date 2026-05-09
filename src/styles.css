@@ -283,6 +283,12 @@ input[type="range"] {
   pointer-events: none;
 }
 
+.setting-title {
+  color: #242932;
+  font-size: 16px;
+  font-weight: 850;
+}
+
 .switch-slider {
   position: relative;
   flex: 0 0 auto;
@@ -312,6 +318,15 @@ input[type="range"] {
 .switch-field input:checked + .switch-slider {
   border-color: #4d6faf;
   background: #4d6faf;
+}
+
+.danger-switch {
+  margin-top: 20px;
+}
+
+.danger-switch input:checked + .switch-slider {
+  border-color: #c93d3d;
+  background: #c93d3d;
 }
 
 .switch-field input:checked + .switch-slider::after {

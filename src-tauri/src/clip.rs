@@ -40,7 +40,7 @@ impl AudioClipPlayer {
             clip,
             position: 0.0,
             step,
-            volume: volume.clamp(0.01, 1.0),
+            volume: volume.max(0.01),
         }
     }
 

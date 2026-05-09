@@ -50,6 +50,7 @@ export type SoundboardCell = {
 export type SoundboardLayout = {
   grid_size: GridSize;
   cells: SoundboardCell[];
+  ear_rape_enabled: boolean;
   monitor_clip_playback: boolean;
   selected_input: string;
   selected_monitor_output: string;

@@ -28,6 +28,7 @@ pub struct Soundboard {
     clips: HashMap<String, Arc<AudioClip>>,
     clips_dir: PathBuf,
     hotkeys: HashMap<u32, HotkeyTarget>,
+    ear_rape_enabled: bool,
     monitor_clip_playback: bool,
 }
 
@@ -39,6 +40,7 @@ impl Soundboard {
             clips: HashMap::new(),
             clips_dir,
             hotkeys: HashMap::new(),
+            ear_rape_enabled: false,
             monitor_clip_playback: true,
         }
     }
@@ -150,7 +152,21 @@ impl Soundboard {
             .ok_or("Start the audio engine before playing clips")?;
         let clip = self.clips.get(clip_id).ok_or("Clip has not been loaded")?;
 
-        engine.play_clip(Arc::clone(clip), volume, self.monitor_clip_playback)
+        let playback_volume = if self.ear_rape_enabled {
+            volume * 15.0
+        } else {
+            volume
+        };
+
+        engine.play_clip(
+            Arc::clone(clip),
+            playback_volume,
+            self.monitor_clip_playback,
+        )
+    }
+
+    pub fn set_ear_rape_enabled(&mut self, enabled: bool) {
+        self.ear_rape_enabled = enabled;
     }
 
     pub fn set_monitor_clip_playback(&mut self, enabled: bool) {
@@ -525,7 +541,7 @@ impl AudioEngine {
         volume: f32,
         monitor_clip_playback: bool,
     ) -> Result<(), String> {
-        let volume = volume.clamp(0.01, 1.0);
+        let volume = volume.max(0.01);
         self.voice_command_sender
             .send(AudioCommand::PlayClip {
                 clip: Arc::clone(&clip),

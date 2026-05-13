@@ -30,7 +30,7 @@ struct HotkeyBinding {
 struct SoundboardLayout {
     grid_size: serde_json::Value,
     cells: serde_json::Value,
-    ear_rape_enabled: Option<bool>,
+    clip_boost_enabled: Option<bool>,
     selected_input: Option<String>,
     selected_monitor_output: Option<String>,
     monitor_clip_playback: Option<bool>,
@@ -94,9 +94,9 @@ fn set_monitor_clip_playback(state: tauri::State<AppState>, enabled: bool) -> Re
 }
 
 #[tauri::command]
-fn set_ear_rape_enabled(state: tauri::State<AppState>, enabled: bool) -> Result<(), String> {
+fn set_clip_boost_enabled(state: tauri::State<AppState>, enabled: bool) -> Result<(), String> {
     let mut soundboard = state.soundboard.lock().map_err(|err| err.to_string())?;
-    soundboard.set_ear_rape_enabled(enabled);
+    soundboard.set_clip_boost_enabled(enabled);
     Ok(())
 }
 
@@ -242,7 +242,7 @@ pub fn run() {
             start_mic_test,
             stop_mic_test,
             mic_test_level,
-            set_ear_rape_enabled,
+            set_clip_boost_enabled,
             set_monitor_clip_playback,
             load_soundboard_layout,
             save_soundboard_layout,

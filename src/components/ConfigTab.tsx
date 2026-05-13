@@ -1,14 +1,14 @@
 type ConfigTabProps = {
-  earRapeEnabled: boolean;
+  clipBoostEnabled: boolean;
   monitorClipPlayback: boolean;
-  onEarRapeEnabledChange: (enabled: boolean) => void;
+  onClipBoostEnabledChange: (enabled: boolean) => void;
   onMonitorClipPlaybackChange: (enabled: boolean) => void;
 };
 
 function ConfigTab({
-  earRapeEnabled,
+  clipBoostEnabled,
   monitorClipPlayback,
-  onEarRapeEnabledChange,
+  onClipBoostEnabledChange,
   onMonitorClipPlaybackChange,
 }: ConfigTabProps) {
   return (
@@ -30,11 +30,11 @@ function ConfigTab({
         </p>
 
         <label className="switch-field danger-switch">
-          <span className="setting-title">Ear rape</span>
+          <span className="setting-title">Clip Boost</span>
           <input
-            checked={earRapeEnabled}
+            checked={clipBoostEnabled}
             type="checkbox"
-            onChange={(event) => onEarRapeEnabledChange(event.target.checked)}
+            onChange={(event) => onClipBoostEnabledChange(event.target.checked)}
           />
           <span className="switch-slider" aria-hidden="true" />
         </label>

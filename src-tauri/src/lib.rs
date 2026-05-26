@@ -1,7 +1,9 @@
 mod audio;
 mod clip;
+mod effects;
 mod soundboard;
 
+use effects::MicEffectsConfig;
 use serde::Deserialize;
 use soundboard::{
     AudioDeviceLists, ClipRecord, DeviceSelection, HotkeyTarget, Soundboard, SoundboardStatus,
@@ -34,6 +36,7 @@ struct SoundboardLayout {
     selected_input: Option<String>,
     selected_monitor_output: Option<String>,
     monitor_clip_playback: Option<bool>,
+    mic_effects: Option<MicEffectsConfig>,
 }
 
 #[tauri::command]
@@ -97,6 +100,22 @@ fn set_monitor_clip_playback(state: tauri::State<AppState>, enabled: bool) -> Re
 fn set_clip_boost_enabled(state: tauri::State<AppState>, enabled: bool) -> Result<(), String> {
     let mut soundboard = state.soundboard.lock().map_err(|err| err.to_string())?;
     soundboard.set_clip_boost_enabled(enabled);
+    Ok(())
+}
+
+#[tauri::command]
+fn mic_effects_config(state: tauri::State<AppState>) -> Result<MicEffectsConfig, String> {
+    let soundboard = state.soundboard.lock().map_err(|err| err.to_string())?;
+    Ok(soundboard.mic_effects_config())
+}
+
+#[tauri::command]
+fn set_mic_effects_config(
+    state: tauri::State<AppState>,
+    config: MicEffectsConfig,
+) -> Result<(), String> {
+    let soundboard = state.soundboard.lock().map_err(|err| err.to_string())?;
+    soundboard.set_mic_effects_config(config);
     Ok(())
 }
 
@@ -259,6 +278,8 @@ pub fn run() {
             mic_test_level,
             set_clip_boost_enabled,
             set_monitor_clip_playback,
+            mic_effects_config,
+            set_mic_effects_config,
             load_soundboard_layout,
             save_soundboard_layout,
             import_clip,

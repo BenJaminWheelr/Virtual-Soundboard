@@ -2,6 +2,7 @@ use crate::audio::{
     AudioCommand, AudioStats, build_clip_monitor_stream, build_input_stream, build_output_stream,
 };
 use crate::clip::AudioClip;
+use crate::effects::{MicEffectsConfig, SharedMicEffects};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{FromSample, Sample, SampleFormat, SizedSample};
 use ringbuf::{
@@ -30,6 +31,7 @@ pub struct Soundboard {
     hotkeys: HashMap<u32, HotkeyTarget>,
     clip_boost_enabled: bool,
     monitor_clip_playback: bool,
+    mic_effects: SharedMicEffects,
 }
 
 impl Soundboard {
@@ -42,6 +44,7 @@ impl Soundboard {
             hotkeys: HashMap::new(),
             clip_boost_enabled: false,
             monitor_clip_playback: true,
+            mic_effects: SharedMicEffects::new(),
         }
     }
 
@@ -51,7 +54,8 @@ impl Soundboard {
         }
 
         self.load_persisted_clips()?;
-        let engine = AudioEngine::start(selection).map_err(|err| err.to_string())?;
+        let engine = AudioEngine::start(selection, self.mic_effects.clone())
+            .map_err(|err| err.to_string())?;
 
         self.engine = Some(engine);
         Ok(())
@@ -171,6 +175,14 @@ impl Soundboard {
 
     pub fn set_monitor_clip_playback(&mut self, enabled: bool) {
         self.monitor_clip_playback = enabled;
+    }
+
+    pub fn mic_effects_config(&self) -> MicEffectsConfig {
+        self.mic_effects.config()
+    }
+
+    pub fn set_mic_effects_config(&self, config: MicEffectsConfig) {
+        self.mic_effects.set_config(config);
     }
 
     pub fn set_hotkeys(&mut self, hotkeys: HashMap<u32, HotkeyTarget>) {
@@ -453,7 +465,10 @@ where
 }
 
 impl AudioEngine {
-    fn start(selection: DeviceSelection) -> Result<Self, Box<dyn std::error::Error>> {
+    fn start(
+        selection: DeviceSelection,
+        mic_effects: SharedMicEffects,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
         let host = cpal::default_host();
         let input_device = find_input_device(&host, selection.input_device)?
             .or_else(|| host.default_input_device())
@@ -498,6 +513,7 @@ impl AudioEngine {
             input_channels,
             producer,
             stats.dropped_input_frames.clone(),
+            mic_effects,
         )?;
 
         let voice_stream = build_output_stream(

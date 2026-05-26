@@ -6,10 +6,12 @@ import ConfigTab from "./components/ConfigTab";
 import MainTab from "./components/MainTab";
 import SoundboardTab from "./components/SoundboardTab";
 import Tabs from "./components/Tabs";
+import { defaultGridSize, defaultMicEffects } from "./defaults";
 import { createCells } from "./soundboardState";
 import type {
   AudioDeviceLists,
   GridSize,
+  MicEffectsConfig,
   SoundboardCell,
   SoundboardLayout,
   SoundboardStatus,
@@ -34,11 +36,6 @@ const fallbackDevices: AudioDeviceLists = {
   monitor_output: null,
 };
 
-const defaultGridSize: GridSize = {
-  rows: 5,
-  cols: 5,
-};
-
 function App() {
   const [activeTab, setActiveTab] = useState<TabId>("main");
   const [busy, setBusy] = useState(false);
@@ -50,6 +47,7 @@ function App() {
   const [clipBoostEnabled, setClipBoostEnabled] = useState(false);
   const [micTestLevel, setMicTestLevel] = useState(0);
   const [micTestRunning, setMicTestRunning] = useState(false);
+  const [micEffects, setMicEffects] = useState<MicEffectsConfig>(defaultMicEffects);
   const [monitorClipPlayback, setMonitorClipPlayback] = useState(true);
   const [selectedCellId, setSelectedCellId] = useState("cell-0");
   const [selectedInput, setSelectedInput] = useState("");
@@ -110,6 +108,7 @@ function App() {
     clipBoostEnabled,
     gridSize,
     monitorClipPlayback,
+    micEffects,
     selectedInput,
     selectedMonitorOutput,
     layoutLoaded,
@@ -171,6 +170,7 @@ function App() {
         );
         changeClipBoostEnabled(savedLayout.clip_boost_enabled ?? false, false);
         changeMonitorClipPlayback(savedLayout.monitor_clip_playback ?? true, false);
+        changeMicEffectsConfig(savedLayout.mic_effects ?? defaultMicEffects, false);
         setSelectedInput(savedLayout.selected_input ?? "");
         setSelectedMonitorOutput(savedLayout.selected_monitor_output ?? "");
       }
@@ -188,6 +188,7 @@ function App() {
           grid_size: gridSize,
           cells,
           clip_boost_enabled: clipBoostEnabled,
+          mic_effects: micEffects,
           monitor_clip_playback: monitorClipPlayback,
           selected_input: selectedInput,
           selected_monitor_output: selectedMonitorOutput,
@@ -233,6 +234,22 @@ function App() {
       await invoke("set_clip_boost_enabled", { enabled });
       if (saveImmediately && layoutLoaded) {
         saveSoundboardLayout({ clip_boost_enabled: enabled });
+      }
+    } catch (error) {
+      setMessage(formatError(error));
+    }
+  }
+
+  async function changeMicEffectsConfig(
+    config: MicEffectsConfig,
+    saveImmediately = true,
+  ) {
+    setMicEffects(config);
+
+    try {
+      await invoke("set_mic_effects_config", { config });
+      if (saveImmediately && layoutLoaded) {
+        saveSoundboardLayout({ mic_effects: config });
       }
     } catch (error) {
       setMessage(formatError(error));
@@ -486,8 +503,8 @@ function App() {
               selectedInput={selectedInput}
               selectedMonitorOutput={selectedMonitorOutput}
               status={status}
-          onInputChange={changeSelectedInput}
-          onMonitorOutputChange={changeSelectedMonitorOutput}
+              onInputChange={changeSelectedInput}
+              onMonitorOutputChange={changeSelectedMonitorOutput}
               onRefreshDevices={refreshDevices}
               onStartAudioEngine={status.engine_running ? stopAudioEngine : startAudioEngine}
               onToggleMicTest={toggleMicTest}
@@ -523,8 +540,10 @@ function App() {
           {activeTab === "config" && (
             <ConfigTab
               clipBoostEnabled={clipBoostEnabled}
+              micEffects={micEffects}
               monitorClipPlayback={monitorClipPlayback}
               onClipBoostEnabledChange={changeClipBoostEnabled}
+              onMicEffectsChange={changeMicEffectsConfig}
               onMonitorClipPlaybackChange={changeMonitorClipPlayback}
             />
           )}

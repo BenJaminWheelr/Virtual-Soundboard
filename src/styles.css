@@ -118,6 +118,7 @@ h3 {
 
 .config-layout {
   display: grid;
+  gap: 18px;
   justify-content: center;
 }
 
@@ -340,11 +341,27 @@ input[type="range"] {
   align-items: center;
 }
 
+.range-field.wide-output {
+  grid-template-columns: 1fr 72px;
+}
+
 .range-field output {
   color: #24324a;
   font-size: 13px;
   font-weight: 800;
   text-align: right;
+}
+
+.effect-section {
+  display: grid;
+  gap: 12px;
+  padding: 16px 0;
+  border-top: 1px solid #edf0f4;
+}
+
+.effect-section:first-of-type {
+  padding-top: 0;
+  border-top: 0;
 }
 
 .device-details {

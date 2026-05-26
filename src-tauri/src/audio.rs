@@ -1,4 +1,5 @@
 use crate::clip::{AudioClip, AudioClipPlayer};
+use crate::effects::{MicEffectsProcessor, SharedMicEffects};
 use cpal::traits::DeviceTrait;
 use cpal::{FromSample, Sample, SampleFormat, SizedSample};
 use ringbuf::traits::{Consumer, Producer};
@@ -33,17 +34,24 @@ pub fn build_input_stream(
     input_channels: usize,
     producer: impl Producer<Item = f32> + Send + 'static,
     dropped_frames: Arc<AtomicUsize>,
+    mic_effects: SharedMicEffects,
 ) -> Result<cpal::Stream, cpal::BuildStreamError> {
     match sample_format {
-        SampleFormat::I8 => {
-            build_typed_input_stream::<i8>(device, config, input_channels, producer, dropped_frames)
-        }
+        SampleFormat::I8 => build_typed_input_stream::<i8>(
+            device,
+            config,
+            input_channels,
+            producer,
+            dropped_frames,
+            mic_effects,
+        ),
         SampleFormat::I16 => build_typed_input_stream::<i16>(
             device,
             config,
             input_channels,
             producer,
             dropped_frames,
+            mic_effects,
         ),
         SampleFormat::I24 => build_typed_input_stream::<cpal::I24>(
             device,
@@ -51,6 +59,7 @@ pub fn build_input_stream(
             input_channels,
             producer,
             dropped_frames,
+            mic_effects,
         ),
         SampleFormat::I32 => build_typed_input_stream::<i32>(
             device,
@@ -58,6 +67,7 @@ pub fn build_input_stream(
             input_channels,
             producer,
             dropped_frames,
+            mic_effects,
         ),
         SampleFormat::I64 => build_typed_input_stream::<i64>(
             device,
@@ -65,16 +75,23 @@ pub fn build_input_stream(
             input_channels,
             producer,
             dropped_frames,
+            mic_effects,
         ),
-        SampleFormat::U8 => {
-            build_typed_input_stream::<u8>(device, config, input_channels, producer, dropped_frames)
-        }
+        SampleFormat::U8 => build_typed_input_stream::<u8>(
+            device,
+            config,
+            input_channels,
+            producer,
+            dropped_frames,
+            mic_effects,
+        ),
         SampleFormat::U16 => build_typed_input_stream::<u16>(
             device,
             config,
             input_channels,
             producer,
             dropped_frames,
+            mic_effects,
         ),
         SampleFormat::U24 => build_typed_input_stream::<cpal::U24>(
             device,
@@ -82,6 +99,7 @@ pub fn build_input_stream(
             input_channels,
             producer,
             dropped_frames,
+            mic_effects,
         ),
         SampleFormat::U32 => build_typed_input_stream::<u32>(
             device,
@@ -89,6 +107,7 @@ pub fn build_input_stream(
             input_channels,
             producer,
             dropped_frames,
+            mic_effects,
         ),
         SampleFormat::U64 => build_typed_input_stream::<u64>(
             device,
@@ -96,6 +115,7 @@ pub fn build_input_stream(
             input_channels,
             producer,
             dropped_frames,
+            mic_effects,
         ),
         SampleFormat::F32 => build_typed_input_stream::<f32>(
             device,
@@ -103,6 +123,7 @@ pub fn build_input_stream(
             input_channels,
             producer,
             dropped_frames,
+            mic_effects,
         ),
         SampleFormat::F64 => build_typed_input_stream::<f64>(
             device,
@@ -110,6 +131,7 @@ pub fn build_input_stream(
             input_channels,
             producer,
             dropped_frames,
+            mic_effects,
         ),
         format => panic!("Unsupported input sample format: {format:?}"),
     }
@@ -121,11 +143,14 @@ fn build_typed_input_stream<T>(
     input_channels: usize,
     mut producer: impl Producer<Item = f32> + Send + 'static,
     dropped_frames: Arc<AtomicUsize>,
+    mic_effects: SharedMicEffects,
 ) -> Result<cpal::Stream, cpal::BuildStreamError>
 where
     T: Sample + SizedSample,
     f32: FromSample<T>,
 {
+    let mut processor = MicEffectsProcessor::new(mic_effects, config.sample_rate);
+
     device.build_input_stream(
         config,
         move |data: &[T], _: &cpal::InputCallbackInfo| {
@@ -136,7 +161,9 @@ where
                     .sum::<f32>()
                     / frame.len() as f32;
 
-                if producer.try_push(mono).is_err() {
+                let processed = processor.process_sample(mono);
+
+                if producer.try_push(processed).is_err() {
                     dropped_frames.fetch_add(1, Ordering::Relaxed);
                 }
             }

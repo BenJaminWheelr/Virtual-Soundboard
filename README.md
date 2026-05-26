@@ -1,18 +1,21 @@
 # Virtual Soundboard
 
-Virtual Soundboard is a Windows desktop app for playing audio clips (Just like a normal physical soundboard). Hwoever, this program is, and always will be, free. The key feature of this program is that it works on top of other voice chat applications, such as discord. It does this by mixing audio clips directly with your microphone data, and sending it to the Virtual Cable output. Thus, when you set your input audio device to the Virtual Cable output, it is like the audio clip originated from your microphone. 
+Virtual Soundboard is a Windows desktop app for playing audio clips like a physical soundboard. It is free, and it is built to work with voice chat apps such as Discord and games.
+
+The app mixes your microphone and soundboard clips into VB-Cable. When Discord or a game uses `CABLE Output (VB-Audio Virtual Cable)` as its input device, clips sound like they came from your microphone. The app can also monitor clips through your real speakers or headphones.
 
 It is built with Tauri, Rust, TypeScript, and React.
 
-## What It Does
+## Features
 
 - Import `.mp3` and `.wav` sound clips.
 - Assign clips to soundboard pads.
-- Add labels, hotkeys, and per-pad volume.
+- Add labels, global hotkeys, and per-pad volume.
 - Trigger clips from inside the app or with global hotkeys.
-- Route your microphone plus soundboard clips into Discord or game chat through VB-Cable.
-- Let you hear clips through your selected speakers/headphones without hearing your own mic.
-- Save your layout, clips, device choices, hotkeys, and config locally.
+- Route microphone plus clips into Discord or game chat through VB-Cable.
+- Hear clips through your selected monitor output without hearing your own mic.
+- Toggle mic-only DSP effects.
+- Save clips, layout, device choices, hotkeys, playback config, and effects locally.
 
 ## Requirements
 
@@ -79,6 +82,61 @@ Mic + clips -> VB-Cable -> Discord/game
 Clips only  -> speakers/headphones
 ```
 
+## Mic Effects
+
+Mic effects are applied only to live microphone audio before it enters the voice-chat mix. They do not affect soundboard clips.
+
+Current proof-of-concept effects:
+
+- Noise Gate: reduces low-level background noise.
+- High-Pass Filter: removes low rumble.
+- Low-Pass Filter: removes high-frequency harshness.
+- Soft Saturation: adds gentle drive/compression-style color.
+
+The Rust audio callback reads effect settings through atomics instead of locking a normal mutex. This keeps the real-time audio path cheap and makes it easier to add higher-quality DSP later.
+
+## Global Hotkeys
+
+Hotkeys are configured per soundboard cell. They are registered with the operating system only while the audio engine is running.
+
+- Starting the audio engine registers the current hotkeys.
+- Editing cell hotkeys while the engine is running re-registers them.
+- Stopping the audio engine unregisters all hotkeys.
+
+## Local Persistence
+
+Saved app data lives in Tauri's app data directory, not in browser `localStorage`.
+
+The backend creates:
+
+```text
+app_data_dir\clips\
+app_data_dir\soundboard-layout.json
+```
+
+Imported clips are copied into `clips`. The layout JSON stores grid size, cell assignments, labels, hotkeys, volume, selected devices, playback settings, and mic effects.
+
+## Project Map
+
+Frontend:
+
+- `src/App.tsx`: main app state, Tauri command calls, persistence flow.
+- `src/defaults.ts`: shared frontend defaults for grid size and mic effects.
+- `src/types.ts`: frontend data types.
+- `src/soundboardState.ts`: soundboard grid creation and volume clamping.
+- `src/components/MainTab.tsx`: device selection, engine controls, mic test.
+- `src/components/SoundboardTab.tsx`: pad grid, cell editing, hotkey capture.
+- `src/components/AudioClipManagerTab.tsx`: clip import/delete UI.
+- `src/components/ConfigTab.tsx`: playback settings and mic effects controls.
+
+Backend:
+
+- `src-tauri/src/lib.rs`: Tauri setup, app state, commands, global shortcut plugin.
+- `src-tauri/src/soundboard.rs`: soundboard state, clip storage, device discovery, engine lifecycle.
+- `src-tauri/src/audio.rs`: CPAL input/output streams, mic passthrough, clip mixing, monitor playback.
+- `src-tauri/src/effects.rs`: real-time-safe mic effects config and DSP processing.
+- `src-tauri/src/clip.rs`: MP3/WAV decoding and clip sample playback.
+
 ## Voice Chat Settings
 
 In Discord or other voice chat apps, soundboard clips may get filtered out unless you change noise settings.
@@ -118,12 +176,14 @@ Check that the Main tab input device is your actual microphone.
 
 Also make sure Discord/game input is `CABLE Output`, not your physical microphone.
 
+### Effects are not changing clips
+
+That is expected. Effects are mic-only. Soundboard clips remain clean.
 
 ### AirPods
 
-Currently, Apple Airpods do not work with this application.
-
+Currently, Apple AirPods do not work with this application.
 
 ### My saved clips/layout are not included when I share the `.exe`
 
-Correct. Saved clips, hotkeys, layout, and device choices are stored locally in your app data folder. Friends who run the app will start with their own fresh setup.
+Correct. Saved clips, hotkeys, layout, device choices, and effects are stored locally in your app data folder. Friends who run the app will start with their own fresh setup.

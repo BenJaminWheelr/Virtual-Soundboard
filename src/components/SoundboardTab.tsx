@@ -224,10 +224,10 @@ function SoundboardTab({
             <button
               key={cell.id}
               className={isSelected ? "clip-pad selected" : "clip-pad"}
-              aria-disabled={busy || !statusEngineRunning || !assignedClip}
+              aria-disabled={busy || !assignedClip}
               onClick={() => {
                 onSelectCell(cell.id);
-                if (!busy && statusEngineRunning && assignedClip) {
+                if (!busy && assignedClip) {
                   onPlayCell(cell);
                 }
               }}

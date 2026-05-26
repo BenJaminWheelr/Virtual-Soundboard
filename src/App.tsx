@@ -328,6 +328,11 @@ function App() {
       return;
     }
 
+    if (!status.engine_running) {
+      setMessage("Start the audio engine before playing clips");
+      return;
+    }
+
     setSelectedCellId(cell.id);
     setBusy(true);
     setMessage(`Triggering ${clip.name}...`);

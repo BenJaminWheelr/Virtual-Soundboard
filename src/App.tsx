@@ -44,6 +44,7 @@ function App() {
   const [layoutLoaded, setLayoutLoaded] = useState(false);
   const [initialDataLoaded, setInitialDataLoaded] = useState(false);
   const [message, setMessage] = useState("Backend idle");
+  const [messageTone, setMessageTone] = useState<"info" | "error">("info");
   const [clipBoostEnabled, setClipBoostEnabled] = useState(false);
   const [micTestLevel, setMicTestLevel] = useState(0);
   const [micTestRunning, setMicTestRunning] = useState(false);
@@ -86,7 +87,7 @@ function App() {
         const nextLevel = await invoke<number>("mic_test_level");
         setMicTestLevel(nextLevel);
       } catch (error) {
-        setMessage(formatError(error));
+        showError(formatError(error));
       }
     }, 60);
 
@@ -119,8 +120,18 @@ function App() {
       const nextStatus = await invoke<SoundboardStatus>("backend_status");
       setStatus(nextStatus);
     } catch (error) {
-      setMessage(formatError(error));
+      showError(formatError(error));
     }
+  }
+
+  function showInfo(nextMessage: string) {
+    setMessage(nextMessage);
+    setMessageTone("info");
+  }
+
+  function showError(nextMessage: string) {
+    setMessage(nextMessage);
+    setMessageTone("error");
   }
 
   async function loadInitialData() {
@@ -138,17 +149,17 @@ function App() {
       const nextDevices = await invoke<AudioDeviceLists>("list_audio_devices");
       setDevices(nextDevices);
     } catch (error) {
-      setMessage(formatError(error));
+      showError(formatError(error));
     }
   }
 
   async function refreshDevices() {
     setBusy(true);
-    setMessage("Scanning audio devices...");
+    showInfo("Scanning audio devices...");
 
     try {
       await loadDevices();
-      setMessage("Audio devices refreshed");
+      showInfo("Audio devices refreshed");
     } finally {
       setBusy(false);
     }
@@ -175,7 +186,7 @@ function App() {
         setSelectedMonitorOutput(savedLayout.selected_monitor_output ?? "");
       }
     } catch (error) {
-      setMessage(formatError(error));
+      showError(formatError(error));
     } finally {
       setLayoutLoaded(true);
     }
@@ -196,7 +207,7 @@ function App() {
         },
       });
     } catch (error) {
-      setMessage(formatError(error));
+      showError(formatError(error));
     }
   }
 
@@ -223,7 +234,7 @@ function App() {
         saveSoundboardLayout({ monitor_clip_playback: enabled });
       }
     } catch (error) {
-      setMessage(formatError(error));
+      showError(formatError(error));
     }
   }
 
@@ -236,7 +247,7 @@ function App() {
         saveSoundboardLayout({ clip_boost_enabled: enabled });
       }
     } catch (error) {
-      setMessage(formatError(error));
+      showError(formatError(error));
     }
   }
 
@@ -252,13 +263,13 @@ function App() {
         saveSoundboardLayout({ mic_effects: config });
       }
     } catch (error) {
-      setMessage(formatError(error));
+      showError(formatError(error));
     }
   }
 
   async function startAudioEngine() {
     setBusy(true);
-    setMessage("Starting audio engine...");
+    showInfo("Starting audio engine...");
 
     try {
       if (micTestRunning) {
@@ -274,9 +285,9 @@ function App() {
       });
       setStatus(nextStatus);
       await updateGlobalHotkeys();
-      setMessage("Audio engine running");
+      showInfo("Audio engine running");
     } catch (error) {
-      setMessage(formatError(error));
+      showError(formatError(error));
     } finally {
       setBusy(false);
     }
@@ -289,7 +300,7 @@ function App() {
       if (micTestRunning) {
         await invoke("stop_mic_test");
         setMicTestRunning(false);
-        setMessage("Microphone test stopped");
+        showInfo("Microphone test stopped");
         return;
       }
 
@@ -297,9 +308,9 @@ function App() {
         inputDevice: selectedInput || null,
       });
       setMicTestRunning(true);
-      setMessage("Microphone test running");
+      showInfo("Microphone test running");
     } catch (error) {
-      setMessage(formatError(error));
+      showError(formatError(error));
     } finally {
       setBusy(false);
     }
@@ -307,15 +318,15 @@ function App() {
   
   async function stopAudioEngine() {
     setBusy(true);
-    setMessage("Stopping audio engine...");
+    showInfo("Stopping audio engine...");
 
     try {
       const nextStatus = await invoke<SoundboardStatus>("stop_audio_engine");
       await invoke("clear_global_hotkeys");
       setStatus(nextStatus);
-      setMessage("Audio engine stopped");
+      showInfo("Audio engine stopped");
     } catch (error) {
-      setMessage(formatError(error));
+      showError(formatError(error));
     } finally {
       setBusy(false);
     }
@@ -324,18 +335,18 @@ function App() {
   async function playCell(cell: SoundboardCell) {
     const clip = uploadedClips.find((uploadedClip) => uploadedClip.id === cell.clipId);
     if (!clip) {
-      setMessage("Assign a clip to this cell first");
+      showError("Assign a clip to this cell first");
       return;
     }
 
     if (!status.engine_running) {
-      setMessage("Start the audio engine before playing clips");
+      showError("Start the audio engine before playing clips");
       return;
     }
 
     setSelectedCellId(cell.id);
     setBusy(true);
-    setMessage(`Triggering ${clip.name}...`);
+    showInfo(`Triggering ${clip.name}...`);
 
     try {
       const nextStatus = await invoke<SoundboardStatus>("play_clip", {
@@ -343,9 +354,9 @@ function App() {
         volume: cell.volume,
       });
       setStatus(nextStatus);
-      setMessage(`${cell.label || clip.name} triggered`);
+      showInfo(`${cell.label || clip.name} triggered`);
     } catch (error) {
-      setMessage(formatError(error));
+      showError(formatError(error));
     } finally {
       setBusy(false);
     }
@@ -368,7 +379,7 @@ function App() {
       const clips = await invoke<UploadedClip[]>("list_clips");
       setUploadedClips(clips);
     } catch (error) {
-      setMessage(formatError(error));
+      showError(formatError(error));
     }
   }
 
@@ -384,7 +395,7 @@ function App() {
     try {
       await invoke("update_global_hotkeys", { bindings });
     } catch (error) {
-      setMessage(formatError(error));
+      showError(formatError(error));
     }
   }
 
@@ -424,7 +435,7 @@ function App() {
     }
 
     setBusy(true);
-    setMessage("Importing clips...");
+    showInfo("Importing clips...");
     setUploadMessage("Importing clips...");
     setUploadMessageTone("info");
 
@@ -441,14 +452,14 @@ function App() {
         `${supportedPaths.length} clip${supportedPaths.length === 1 ? "" : "s"} imported.`,
       );
       setUploadMessageTone("info");
-      setMessage(
+      showInfo(
         `${supportedPaths.length} clip${supportedPaths.length === 1 ? "" : "s"} imported`,
       );
     } catch (error) {
       const errorMessage = formatError(error);
       setUploadMessage(errorMessage);
       setUploadMessageTone("error");
-      setMessage("Clip import failed");
+      showError("Clip import failed");
     } finally {
       setBusy(false);
     }
@@ -456,7 +467,7 @@ function App() {
 
   async function deleteClip(clipId: string) {
     setBusy(true);
-    setMessage("Deleting clip...");
+    showInfo("Deleting clip...");
 
     try {
       await invoke("delete_clip", { clipId });
@@ -469,9 +480,9 @@ function App() {
         ),
       );
       await refreshStatus();
-      setMessage("Clip deleted");
+      showInfo("Clip deleted");
     } catch (error) {
-      setMessage(formatError(error));
+      showError(formatError(error));
     } finally {
       setBusy(false);
     }
@@ -482,7 +493,9 @@ function App() {
       <section className="top-bar">
         <div>
           <h1>Virtual Soundboard</h1>
-          <p>{message}</p>
+          <p className={messageTone === "error" ? "message-text error" : "message-text"}>
+            {message}
+          </p>
         </div>
         <span className={status.engine_running ? "status live" : "status"}>
           {status.engine_running ? "Engine Live" : "Engine Off"}

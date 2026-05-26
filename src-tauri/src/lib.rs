@@ -203,6 +203,21 @@ fn update_global_hotkeys(
     Ok(())
 }
 
+#[tauri::command]
+fn clear_global_hotkeys(
+    app: tauri::AppHandle,
+    state: tauri::State<AppState>,
+) -> Result<(), String> {
+    app.global_shortcut()
+        .unregister_all()
+        .map_err(|err| err.to_string())?;
+
+    let mut soundboard = state.soundboard.lock().map_err(|err| err.to_string())?;
+    soundboard.set_hotkeys(HashMap::new());
+
+    Ok(())
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -250,7 +265,8 @@ pub fn run() {
             list_clips,
             delete_clip,
             play_clip,
-            update_global_hotkeys
+            update_global_hotkeys,
+            clear_global_hotkeys
         ])
         .run(tauri::generate_context!())
         .expect("error while running Tauri application");

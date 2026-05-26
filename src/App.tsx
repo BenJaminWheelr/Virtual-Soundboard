@@ -72,8 +72,10 @@ function App() {
   }, []);
 
   useEffect(() => {
-    updateGlobalHotkeys();
-  }, [cells]);
+    if (status.engine_running) {
+      updateGlobalHotkeys();
+    }
+  }, [cells, status.engine_running]);
 
   useEffect(() => {
     if (!micTestRunning) {
@@ -254,6 +256,7 @@ function App() {
         },
       });
       setStatus(nextStatus);
+      await updateGlobalHotkeys();
       setMessage("Audio engine running");
     } catch (error) {
       setMessage(formatError(error));
@@ -290,8 +293,8 @@ function App() {
     setMessage("Stopping audio engine...");
 
     try {
-      // This assumes you have a 'stop_audio_engine' command in your Rust backend
       const nextStatus = await invoke<SoundboardStatus>("stop_audio_engine");
+      await invoke("clear_global_hotkeys");
       setStatus(nextStatus);
       setMessage("Audio engine stopped");
     } catch (error) {

@@ -37,6 +37,7 @@ struct SoundboardLayout {
     selected_monitor_output: Option<String>,
     monitor_clip_playback: Option<bool>,
     mic_effects: Option<MicEffectsConfig>,
+    show_stats_log: Option<bool>,
 }
 
 #[tauri::command]
@@ -107,6 +108,12 @@ fn set_clip_boost_enabled(state: tauri::State<AppState>, enabled: bool) -> Resul
 fn mic_effects_config(state: tauri::State<AppState>) -> Result<MicEffectsConfig, String> {
     let soundboard = state.soundboard.lock().map_err(|err| err.to_string())?;
     Ok(soundboard.mic_effects_config())
+}
+
+#[tauri::command]
+fn audio_stats_log(state: tauri::State<AppState>) -> Result<Vec<String>, String> {
+    let soundboard = state.soundboard.lock().map_err(|err| err.to_string())?;
+    Ok(soundboard.audio_stats_log())
 }
 
 #[tauri::command]
@@ -279,6 +286,7 @@ pub fn run() {
             set_clip_boost_enabled,
             set_monitor_clip_playback,
             mic_effects_config,
+            audio_stats_log,
             set_mic_effects_config,
             load_soundboard_layout,
             save_soundboard_layout,

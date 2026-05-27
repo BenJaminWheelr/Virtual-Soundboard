@@ -7,7 +7,6 @@ type SoundboardTabProps = {
   cells: SoundboardCell[];
   gridSize: GridSize;
   selectedCellId: string;
-  statusEngineRunning: boolean;
   uploadedClips: UploadedClip[];
   onCellChange: (cell: SoundboardCell) => void;
   onGridSizeChange: (size: GridSize) => void;
@@ -20,7 +19,6 @@ function SoundboardTab({
   cells,
   gridSize,
   selectedCellId,
-  statusEngineRunning,
   uploadedClips,
   onCellChange,
   onGridSizeChange,

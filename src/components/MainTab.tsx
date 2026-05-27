@@ -7,6 +7,8 @@ type MainTabProps = {
   micTestRunning: boolean;
   selectedInput: string;
   selectedMonitorOutput: string;
+  showStatsLog: boolean;
+  statsLogLines: string[];
   status: SoundboardStatus;
   onInputChange: (device: string) => void;
   onMonitorOutputChange: (device: string) => void;
@@ -22,6 +24,8 @@ function MainTab({
   micTestRunning,
   selectedInput,
   selectedMonitorOutput,
+  showStatsLog,
+  statsLogLines,
   status,
   onInputChange,
   onMonitorOutputChange,
@@ -142,6 +146,20 @@ function MainTab({
           />
         </div>
       </section>
+
+      {showStatsLog && (
+        <section className="panel stats-panel">
+          <div className="panel-heading">
+            <h2>Stats Log</h2>
+            <span className={status.engine_running ? "terminal-light live" : "terminal-light"} />
+          </div>
+          <pre className="terminal-log" aria-label="Audio engine stats log">
+            {statsLogLines.length > 0
+              ? statsLogLines.join("\n")
+              : "$ waiting for audio stats..."}
+          </pre>
+        </section>
+      )}
     </section>
   );
 }

@@ -53,7 +53,9 @@ function App() {
   const [selectedCellId, setSelectedCellId] = useState("cell-0");
   const [selectedInput, setSelectedInput] = useState("");
   const [selectedMonitorOutput, setSelectedMonitorOutput] = useState("");
+  const [showStatsLog, setShowStatsLog] = useState(false);
   const [status, setStatus] = useState<SoundboardStatus>(fallbackStatus);
+  const [statsLogLines, setStatsLogLines] = useState<string[]>([]);
   const [uploadedClips, setUploadedClips] = useState<UploadedClip[]>([]);
   const [uploadMessage, setUploadMessage] = useState("");
   const [uploadMessageTone, setUploadMessageTone] = useState<"error" | "info">("info");
@@ -95,6 +97,35 @@ function App() {
   }, [micTestRunning]);
 
   useEffect(() => {
+    if (!showStatsLog) {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadStatsLog() {
+      try {
+        const lines = await invoke<string[]>("audio_stats_log");
+        if (!cancelled) {
+          setStatsLogLines(lines);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          showError(formatError(error));
+        }
+      }
+    }
+
+    loadStatsLog();
+    const intervalId = window.setInterval(loadStatsLog, 1000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [showStatsLog, status.engine_running]);
+
+  useEffect(() => {
     if (!layoutLoaded) {
       return;
     }
@@ -112,6 +143,7 @@ function App() {
     micEffects,
     selectedInput,
     selectedMonitorOutput,
+    showStatsLog,
     layoutLoaded,
   ]);
 
@@ -182,6 +214,7 @@ function App() {
         changeClipBoostEnabled(savedLayout.clip_boost_enabled ?? false, false);
         changeMonitorClipPlayback(savedLayout.monitor_clip_playback ?? true, false);
         changeMicEffectsConfig(savedLayout.mic_effects ?? defaultMicEffects, false);
+        setShowStatsLog(savedLayout.show_stats_log ?? false);
         setSelectedInput(savedLayout.selected_input ?? "");
         setSelectedMonitorOutput(savedLayout.selected_monitor_output ?? "");
       }
@@ -203,6 +236,7 @@ function App() {
           monitor_clip_playback: monitorClipPlayback,
           selected_input: selectedInput,
           selected_monitor_output: selectedMonitorOutput,
+          show_stats_log: showStatsLog,
           ...overrides,
         },
       });
@@ -267,6 +301,13 @@ function App() {
     }
   }
 
+  function changeShowStatsLog(enabled: boolean) {
+    setShowStatsLog(enabled);
+    if (layoutLoaded) {
+      saveSoundboardLayout({ show_stats_log: enabled });
+    }
+  }
+
   async function startAudioEngine() {
     setBusy(true);
     showInfo("Starting audio engine...");
@@ -315,7 +356,7 @@ function App() {
       setBusy(false);
     }
   }
-  
+
   async function stopAudioEngine() {
     setBusy(true);
     showInfo("Stopping audio engine...");
@@ -520,6 +561,8 @@ function App() {
               micTestRunning={micTestRunning}
               selectedInput={selectedInput}
               selectedMonitorOutput={selectedMonitorOutput}
+              showStatsLog={showStatsLog}
+              statsLogLines={statsLogLines}
               status={status}
               onInputChange={changeSelectedInput}
               onMonitorOutputChange={changeSelectedMonitorOutput}
@@ -535,7 +578,6 @@ function App() {
               cells={cells}
               gridSize={gridSize}
               selectedCellId={selectedCell?.id ?? "cell-0"}
-              statusEngineRunning={status.engine_running}
               uploadedClips={uploadedClips}
               onCellChange={updateCell}
               onGridSizeChange={changeGridSize}
@@ -560,9 +602,11 @@ function App() {
               clipBoostEnabled={clipBoostEnabled}
               micEffects={micEffects}
               monitorClipPlayback={monitorClipPlayback}
+              showStatsLog={showStatsLog}
               onClipBoostEnabledChange={changeClipBoostEnabled}
               onMicEffectsChange={changeMicEffectsConfig}
               onMonitorClipPlaybackChange={changeMonitorClipPlayback}
+              onShowStatsLogChange={changeShowStatsLog}
             />
           )}
         </>

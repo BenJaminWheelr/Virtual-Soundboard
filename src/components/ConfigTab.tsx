@@ -23,18 +23,22 @@ type ConfigTabProps = {
   clipBoostEnabled: boolean;
   micEffects: MicEffectsConfig;
   monitorClipPlayback: boolean;
+  showStatsLog: boolean;
   onClipBoostEnabledChange: (enabled: boolean) => void;
   onMicEffectsChange: (config: MicEffectsConfig) => void;
   onMonitorClipPlaybackChange: (enabled: boolean) => void;
+  onShowStatsLogChange: (enabled: boolean) => void;
 };
 
 function ConfigTab({
   clipBoostEnabled,
   micEffects,
   monitorClipPlayback,
+  showStatsLog,
   onClipBoostEnabledChange,
   onMicEffectsChange,
   onMonitorClipPlaybackChange,
+  onShowStatsLogChange,
 }: ConfigTabProps) {
   function updateMicEffects(config: Partial<MicEffectsConfig>) {
     onMicEffectsChange({
@@ -43,73 +47,56 @@ function ConfigTab({
     });
   }
 
+  function updateEffect<Key extends keyof MicEffectsConfig>(
+    key: Key,
+    config: Partial<MicEffectsConfig[Key]>,
+  ) {
+    updateMicEffects({
+      [key]: {
+        ...micEffects[key],
+        ...config,
+      },
+    });
+  }
+
   return (
     <section className="config-layout">
       <section className="panel config-panel">
         <h2>Playback</h2>
-        <label className="switch-field">
-          <span className="setting-title">Hear my audio clips</span>
-          <input
-            checked={monitorClipPlayback}
-            type="checkbox"
-            onChange={(event) => onMonitorClipPlaybackChange(event.target.checked)}
-          />
-          <span className="switch-slider" aria-hidden="true" />
-        </label>
-        <p className="muted">
+        <SettingSection
+          enabled={monitorClipPlayback}
+          title="Hear my audio clips"
+          onEnabledChange={onMonitorClipPlaybackChange}
+        >
           When off, clips still go to voice chat but do not play through your
           selected monitor output.
-        </p>
+        </SettingSection>
 
-        <label className="switch-field danger-switch">
-          <span className="setting-title">Clip Boost</span>
-          <input
-            checked={clipBoostEnabled}
-            type="checkbox"
-            onChange={(event) => onClipBoostEnabledChange(event.target.checked)}
-          />
-          <span className="switch-slider" aria-hidden="true" />
-        </label>
-        <p className="muted">
+        <SettingSection
+          danger
+          enabled={clipBoostEnabled}
+          title="Clip Boost"
+          onEnabledChange={onClipBoostEnabledChange}
+        >
           Boosts every audio clip's volume.
-        </p>
+        </SettingSection>
+
+        <SettingSection
+          enabled={showStatsLog}
+          title="Show Stats Log"
+          onEnabledChange={onShowStatsLogChange}
+        >
+          Shows the audio engine stats output on the Main tab.
+        </SettingSection>
       </section>
 
       <section className="panel config-panel">
         <h2>Effects</h2>
 
         <EffectSection
-          enabled={micEffects.noise_gate.enabled}
-          title="Noise Gate"
-          onEnabledChange={(enabled) =>
-            updateMicEffects({
-              noise_gate: { ...micEffects.noise_gate, enabled },
-            })
-          }
-        >
-          <EffectRange
-            label="Threshold"
-            min={0}
-            max={0.25}
-            step={0.005}
-            value={micEffects.noise_gate.threshold}
-            formatValue={(value) => value.toFixed(3)}
-            onChange={(threshold) =>
-              updateMicEffects({
-                noise_gate: { ...micEffects.noise_gate, threshold },
-              })
-            }
-          />
-        </EffectSection>
-
-        <EffectSection
           enabled={micEffects.high_pass.enabled}
           title="High-Pass Filter"
-          onEnabledChange={(enabled) =>
-            updateMicEffects({
-              high_pass: { ...micEffects.high_pass, enabled },
-            })
-          }
+          onEnabledChange={(enabled) => updateEffect("high_pass", { enabled })}
         >
           <EffectRange
             label="Cutoff"
@@ -119,22 +106,14 @@ function ConfigTab({
             value={micEffects.high_pass.cutoff_hz}
             wideOutput
             formatValue={(value) => `${Math.round(value)} Hz`}
-            onChange={(cutoff_hz) =>
-              updateMicEffects({
-                high_pass: { ...micEffects.high_pass, cutoff_hz },
-              })
-            }
+            onChange={(cutoff_hz) => updateEffect("high_pass", { cutoff_hz })}
           />
         </EffectSection>
 
         <EffectSection
           enabled={micEffects.low_pass.enabled}
           title="Low-Pass Filter"
-          onEnabledChange={(enabled) =>
-            updateMicEffects({
-              low_pass: { ...micEffects.low_pass, enabled },
-            })
-          }
+          onEnabledChange={(enabled) => updateEffect("low_pass", { enabled })}
         >
           <EffectRange
             label="Cutoff"
@@ -144,22 +123,14 @@ function ConfigTab({
             value={micEffects.low_pass.cutoff_hz}
             wideOutput
             formatValue={(value) => `${Math.round(value)} Hz`}
-            onChange={(cutoff_hz) =>
-              updateMicEffects({
-                low_pass: { ...micEffects.low_pass, cutoff_hz },
-              })
-            }
+            onChange={(cutoff_hz) => updateEffect("low_pass", { cutoff_hz })}
           />
         </EffectSection>
 
         <EffectSection
           enabled={micEffects.saturation.enabled}
           title="Soft Saturation"
-          onEnabledChange={(enabled) =>
-            updateMicEffects({
-              saturation: { ...micEffects.saturation, enabled },
-            })
-          }
+          onEnabledChange={(enabled) => updateEffect("saturation", { enabled })}
         >
           <EffectRange
             label="Drive"
@@ -168,14 +139,39 @@ function ConfigTab({
             step={0.1}
             value={micEffects.saturation.drive}
             formatValue={(value) => value.toFixed(1)}
-            onChange={(drive) =>
-              updateMicEffects({
-                saturation: { ...micEffects.saturation, drive },
-              })
-            }
+            onChange={(drive) => updateEffect("saturation", { drive })}
           />
         </EffectSection>
       </section>
+    </section>
+  );
+}
+
+function SettingSection({
+  children,
+  danger = false,
+  enabled,
+  title,
+  onEnabledChange,
+}: {
+  children: ReactNode;
+  danger?: boolean;
+  enabled: boolean;
+  title: string;
+  onEnabledChange: (enabled: boolean) => void;
+}) {
+  return (
+    <section className="setting-section">
+      <label className={danger ? "switch-field danger-switch" : "switch-field"}>
+        <span className="setting-title">{title}</span>
+        <input
+          checked={enabled}
+          type="checkbox"
+          onChange={(event) => onEnabledChange(event.target.checked)}
+        />
+        <span className="switch-slider" aria-hidden="true" />
+      </label>
+      <p className="muted">{children}</p>
     </section>
   );
 }

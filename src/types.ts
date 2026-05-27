@@ -55,18 +55,13 @@ export type SoundboardLayout = {
   selected_input: string;
   selected_monitor_output: string;
   mic_effects: MicEffectsConfig;
+  show_stats_log: boolean;
 };
 
 export type MicEffectsConfig = {
-  noise_gate: NoiseGateConfig;
   high_pass: FilterConfig;
   low_pass: FilterConfig;
   saturation: SaturationConfig;
-};
-
-export type NoiseGateConfig = {
-  enabled: boolean;
-  threshold: number;
 };
 
 export type FilterConfig = {

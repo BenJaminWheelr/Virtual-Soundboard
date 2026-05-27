@@ -6,10 +6,6 @@ export const defaultGridSize: GridSize = {
 };
 
 export const defaultMicEffects: MicEffectsConfig = {
-  noise_gate: {
-    enabled: false,
-    threshold: 0.03,
-  },
   high_pass: {
     enabled: false,
     cutoff_hz: 80,

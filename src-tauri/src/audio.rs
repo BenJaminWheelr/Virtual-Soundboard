@@ -3,27 +3,76 @@ use crate::effects::{MicEffectsProcessor, SharedMicEffects};
 use cpal::traits::DeviceTrait;
 use cpal::{FromSample, Sample, SampleFormat, SizedSample};
 use ringbuf::traits::{Consumer, Producer};
+use std::collections::VecDeque;
 use std::sync::{
-    Arc,
+    Arc, Mutex,
     atomic::{AtomicUsize, Ordering},
     mpsc::Receiver,
 };
+
+const MAX_AUDIO_STATS_LOG_LINES: usize = 120;
 
 pub enum AudioCommand {
     PlayClip { clip: Arc<AudioClip>, volume: f32 },
 }
 
+pub struct VoiceOutputStreamParts<'a, C> {
+    pub device: &'a cpal::Device,
+    pub config: &'a cpal::StreamConfig,
+    pub sample_format: SampleFormat,
+    pub output_channels: usize,
+    pub mic_resample_step: f32,
+    pub command_receiver: Receiver<AudioCommand>,
+    pub consumer: C,
+    pub missing_frames: Arc<AtomicUsize>,
+}
+
 pub struct AudioStats {
     pub dropped_input_frames: Arc<AtomicUsize>,
     pub missing_output_frames: Arc<AtomicUsize>,
+    pub log: AudioStatsLog,
 }
 
 impl AudioStats {
-    pub fn new() -> Self {
+    pub fn new(log: AudioStatsLog) -> Self {
         Self {
             dropped_input_frames: Arc::new(AtomicUsize::new(0)),
             missing_output_frames: Arc::new(AtomicUsize::new(0)),
+            log,
         }
+    }
+}
+
+#[derive(Clone)]
+pub struct AudioStatsLog {
+    lines: Arc<Mutex<VecDeque<String>>>,
+}
+
+impl AudioStatsLog {
+    pub fn new() -> Self {
+        Self {
+            lines: Arc::new(Mutex::new(VecDeque::with_capacity(
+                MAX_AUDIO_STATS_LOG_LINES,
+            ))),
+        }
+    }
+
+    pub fn push(&self, line: String) {
+        let Ok(mut lines) = self.lines.lock() else {
+            return;
+        };
+
+        if lines.len() == MAX_AUDIO_STATS_LOG_LINES {
+            lines.pop_front();
+        }
+        lines.push_back(line);
+    }
+
+    pub fn lines(&self) -> Vec<String> {
+        self.lines
+            .lock()
+            .map(|lines| lines.iter().cloned().collect())
+            .unwrap_or_default()
     }
 }
 
@@ -174,15 +223,19 @@ where
 }
 
 pub fn build_output_stream(
-    device: &cpal::Device,
-    config: &cpal::StreamConfig,
-    sample_format: SampleFormat,
-    output_channels: usize,
-    mic_resample_step: f32,
-    command_receiver: Receiver<AudioCommand>,
-    consumer: impl Consumer<Item = f32> + Send + 'static,
-    missing_frames: Arc<AtomicUsize>,
+    parts: VoiceOutputStreamParts<impl Consumer<Item = f32> + Send + 'static>,
 ) -> Result<cpal::Stream, cpal::BuildStreamError> {
+    let VoiceOutputStreamParts {
+        device,
+        config,
+        sample_format,
+        output_channels,
+        mic_resample_step,
+        command_receiver,
+        consumer,
+        missing_frames,
+    } = parts;
+
     match sample_format {
         SampleFormat::I8 => build_typed_output_stream::<i8>(
             device,

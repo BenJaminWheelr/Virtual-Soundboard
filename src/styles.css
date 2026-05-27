@@ -280,7 +280,6 @@ input[type="range"] {
   align-items: center;
   justify-content: space-between;
   gap: 14px;
-  margin-bottom: 12px;
 }
 
 .switch-field input {
@@ -327,7 +326,7 @@ input[type="range"] {
 }
 
 .danger-switch {
-  margin-top: 20px;
+  margin-top: 0;
 }
 
 .danger-switch input:checked + .switch-slider {
@@ -357,6 +356,7 @@ input[type="range"] {
   text-align: right;
 }
 
+.setting-section,
 .effect-section {
   display: grid;
   gap: 12px;
@@ -364,9 +364,15 @@ input[type="range"] {
   border-top: 1px solid #edf0f4;
 }
 
+.setting-section:first-of-type,
 .effect-section:first-of-type {
   padding-top: 0;
   border-top: 0;
+}
+
+.setting-section p {
+  font-size: 13px;
+  line-height: 1.45;
 }
 
 .device-details {
@@ -434,6 +440,39 @@ input[type="range"] {
 .mic-test p {
   margin-top: 8px;
   font-size: 13px;
+}
+
+.stats-panel {
+  grid-column: 1 / -1;
+}
+
+.terminal-light {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #7b8492;
+  box-shadow: 0 0 0 3px rgba(123, 132, 146, 0.16);
+}
+
+.terminal-light.live {
+  background: #41d17d;
+  box-shadow: 0 0 0 3px rgba(65, 209, 125, 0.18);
+}
+
+.terminal-log {
+  min-height: 170px;
+  max-height: 280px;
+  overflow: auto;
+  margin: 0;
+  border: 1px solid #111827;
+  border-radius: 8px;
+  padding: 14px;
+  background: #07110d;
+  color: #b8f7c8;
+  font-family: "Cascadia Mono", "Consolas", "SFMono-Regular", monospace;
+  font-size: 13px;
+  line-height: 1.55;
+  white-space: pre-wrap;
 }
 
 dl {

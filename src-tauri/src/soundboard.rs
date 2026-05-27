@@ -1,5 +1,6 @@
 use crate::audio::{
-    AudioCommand, AudioStats, build_clip_monitor_stream, build_input_stream, build_output_stream,
+    AudioCommand, AudioStats, AudioStatsLog, VoiceOutputStreamParts, build_clip_monitor_stream,
+    build_input_stream, build_output_stream,
 };
 use crate::clip::AudioClip;
 use crate::effects::{MicEffectsConfig, SharedMicEffects};
@@ -32,6 +33,7 @@ pub struct Soundboard {
     clip_boost_enabled: bool,
     monitor_clip_playback: bool,
     mic_effects: SharedMicEffects,
+    stats_log: AudioStatsLog,
 }
 
 impl Soundboard {
@@ -45,6 +47,7 @@ impl Soundboard {
             clip_boost_enabled: false,
             monitor_clip_playback: true,
             mic_effects: SharedMicEffects::new(),
+            stats_log: AudioStatsLog::new(),
         }
     }
 
@@ -54,15 +57,22 @@ impl Soundboard {
         }
 
         self.load_persisted_clips()?;
-        let engine = AudioEngine::start(selection, self.mic_effects.clone())
-            .map_err(|err| err.to_string())?;
+        self.stats_log.push("$ audio engine starting".into());
+        let engine =
+            AudioEngine::start(selection, self.mic_effects.clone(), self.stats_log.clone())
+                .map_err(|err| err.to_string())?;
 
         self.engine = Some(engine);
+        self.stats_log.push("$ audio engine running".into());
         Ok(())
     }
 
     pub fn stop_audio_engine(&mut self) {
-        self.engine = None;
+        if self.engine.is_some() {
+            self.stats_log.push("$ audio engine stopping".into());
+            self.engine = None;
+            self.stats_log.push("$ audio engine stopped".into());
+        }
     }
 
     pub fn start_mic_test(&mut self, input_device: Option<String>) -> Result<(), String> {
@@ -205,6 +215,15 @@ impl Soundboard {
         }
     }
 
+    pub fn audio_stats_log(&self) -> Vec<String> {
+        let lines = self.stats_log.lines();
+        if lines.is_empty() {
+            vec!["$ audio engine stopped".into()]
+        } else {
+            lines
+        }
+    }
+
     fn load_persisted_clips(&mut self) -> Result<Vec<ClipRecord>, String> {
         fs::create_dir_all(&self.clips_dir).map_err(|err| err.to_string())?;
         let mut records = Vec::new();
@@ -340,7 +359,7 @@ struct AudioEngine {
     _input_stream: cpal::Stream,
     _voice_stream: cpal::Stream,
     _monitor_stream: cpal::Stream,
-    _stats_thread_running: Arc<AtomicBool>,
+    stats_thread_running: Arc<AtomicBool>,
 }
 
 struct MicTest {
@@ -468,6 +487,7 @@ impl AudioEngine {
     fn start(
         selection: DeviceSelection,
         mic_effects: SharedMicEffects,
+        stats_log: AudioStatsLog,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let host = cpal::default_host();
         let input_device = find_input_device(&host, selection.input_device)?
@@ -502,7 +522,8 @@ impl AudioEngine {
         let (mut producer, consumer) = rb.split();
         prefill_silence(&mut producer, latency_frames);
 
-        let stats = AudioStats::new();
+        let stats = AudioStats::new(stats_log);
+        stats.log.push("$ audio stats logger initialized".into());
         let (voice_command_sender, voice_command_receiver) = mpsc::channel();
         let (monitor_command_sender, monitor_command_receiver) = mpsc::channel();
 
@@ -516,16 +537,16 @@ impl AudioEngine {
             mic_effects,
         )?;
 
-        let voice_stream = build_output_stream(
-            &voice_output_device,
-            &voice_config,
-            voice_supported_config.sample_format(),
-            voice_channels,
-            input_sample_rate / voice_sample_rate,
-            voice_command_receiver,
+        let voice_stream = build_output_stream(VoiceOutputStreamParts {
+            device: &voice_output_device,
+            config: &voice_config,
+            sample_format: voice_supported_config.sample_format(),
+            output_channels: voice_channels,
+            mic_resample_step: input_sample_rate / voice_sample_rate,
+            command_receiver: voice_command_receiver,
             consumer,
-            stats.missing_output_frames.clone(),
-        )?;
+            missing_frames: stats.missing_output_frames.clone(),
+        })?;
 
         let monitor_stream = build_clip_monitor_stream(
             &monitor_output_device,
@@ -547,7 +568,7 @@ impl AudioEngine {
             _input_stream: input_stream,
             _voice_stream: voice_stream,
             _monitor_stream: monitor_stream,
-            _stats_thread_running: stats_thread_running,
+            stats_thread_running,
         })
     }
 
@@ -571,6 +592,12 @@ impl AudioEngine {
         }
 
         Ok(())
+    }
+}
+
+impl Drop for AudioEngine {
+    fn drop(&mut self) {
+        self.stats_thread_running.store(false, Ordering::Relaxed);
     }
 }
 
@@ -664,10 +691,16 @@ fn start_stats_logger(stats: AudioStats) -> Arc<AtomicBool> {
             let missing = stats.missing_output_frames.swap(0, Ordering::Relaxed);
 
             if dropped > 0 {
+                stats
+                    .log
+                    .push(format!("$ warning dropped_input_frames={dropped}"));
                 eprintln!("Dropped {dropped} input frames. Try increasing LATENCY_MS.");
             }
 
             if missing > 0 {
+                stats
+                    .log
+                    .push(format!("$ warning missing_output_frames={missing}"));
                 eprintln!("Output needed {missing} missing frames. Try increasing LATENCY_MS.");
             }
         }

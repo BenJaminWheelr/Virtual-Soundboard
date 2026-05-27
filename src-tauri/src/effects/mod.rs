@@ -1,24 +1,22 @@
+mod simple;
+
 use serde::{Deserialize, Serialize};
-use std::f32::consts::PI;
+use simple::{SimpleEffectsProcessor, apply_saturation};
 use std::sync::{
     Arc,
     atomic::{AtomicBool, AtomicU32, Ordering},
 };
 
-const DEFAULT_NOISE_GATE_THRESHOLD: f32 = 0.03;
 const DEFAULT_HIGH_PASS_CUTOFF_HZ: f32 = 80.0;
 const DEFAULT_LOW_PASS_CUTOFF_HZ: f32 = 12_000.0;
 const DEFAULT_SATURATION_DRIVE: f32 = 1.5;
 
-const NOISE_GATE_THRESHOLD_RANGE: std::ops::RangeInclusive<f32> = 0.0..=0.25;
 const HIGH_PASS_CUTOFF_RANGE: std::ops::RangeInclusive<f32> = 20.0..=2_000.0;
 const LOW_PASS_CUTOFF_RANGE: std::ops::RangeInclusive<f32> = 1_000.0..=20_000.0;
 const SATURATION_DRIVE_RANGE: std::ops::RangeInclusive<f32> = 1.0..=8.0;
 
 #[derive(Clone)]
 pub struct SharedMicEffects {
-    noise_gate_enabled: Arc<AtomicBool>,
-    noise_gate_threshold: Arc<AtomicU32>,
     high_pass_enabled: Arc<AtomicBool>,
     high_pass_cutoff_hz: Arc<AtomicU32>,
     low_pass_enabled: Arc<AtomicBool>,
@@ -30,8 +28,6 @@ pub struct SharedMicEffects {
 impl SharedMicEffects {
     pub fn new() -> Self {
         let effects = Self {
-            noise_gate_enabled: Arc::new(AtomicBool::new(false)),
-            noise_gate_threshold: Arc::new(AtomicU32::new(DEFAULT_NOISE_GATE_THRESHOLD.to_bits())),
             high_pass_enabled: Arc::new(AtomicBool::new(false)),
             high_pass_cutoff_hz: Arc::new(AtomicU32::new(DEFAULT_HIGH_PASS_CUTOFF_HZ.to_bits())),
             low_pass_enabled: Arc::new(AtomicBool::new(false)),
@@ -45,10 +41,6 @@ impl SharedMicEffects {
 
     pub fn config(&self) -> MicEffectsConfig {
         MicEffectsConfig {
-            noise_gate: NoiseGateConfig {
-                enabled: self.noise_gate_enabled.load(Ordering::Relaxed),
-                threshold: load_f32(&self.noise_gate_threshold),
-            },
             high_pass: FilterConfig {
                 enabled: self.high_pass_enabled.load(Ordering::Relaxed),
                 cutoff_hz: load_f32(&self.high_pass_cutoff_hz),
@@ -65,12 +57,6 @@ impl SharedMicEffects {
     }
 
     pub fn set_config(&self, config: MicEffectsConfig) {
-        self.noise_gate_enabled
-            .store(config.noise_gate.enabled, Ordering::Relaxed);
-        store_f32(
-            &self.noise_gate_threshold,
-            clamp_to_range(config.noise_gate.threshold, &NOISE_GATE_THRESHOLD_RANGE),
-        );
         self.high_pass_enabled
             .store(config.high_pass.enabled, Ordering::Relaxed);
         store_f32(
@@ -93,8 +79,6 @@ impl SharedMicEffects {
 
     pub fn snapshot(&self) -> MicEffectsSnapshot {
         MicEffectsSnapshot {
-            noise_gate_enabled: self.noise_gate_enabled.load(Ordering::Relaxed),
-            noise_gate_threshold: load_f32(&self.noise_gate_threshold),
             high_pass_enabled: self.high_pass_enabled.load(Ordering::Relaxed),
             high_pass_cutoff_hz: load_f32(&self.high_pass_cutoff_hz),
             low_pass_enabled: self.low_pass_enabled.load(Ordering::Relaxed),
@@ -107,48 +91,39 @@ impl SharedMicEffects {
 
 #[derive(Clone, Copy)]
 pub struct MicEffectsSnapshot {
-    noise_gate_enabled: bool,
-    noise_gate_threshold: f32,
-    high_pass_enabled: bool,
-    high_pass_cutoff_hz: f32,
-    low_pass_enabled: bool,
-    low_pass_cutoff_hz: f32,
-    saturation_enabled: bool,
-    saturation_drive: f32,
+    pub high_pass_enabled: bool,
+    pub high_pass_cutoff_hz: f32,
+    pub low_pass_enabled: bool,
+    pub low_pass_cutoff_hz: f32,
+    pub saturation_enabled: bool,
+    pub saturation_drive: f32,
 }
 
 pub struct MicEffectsProcessor {
     effects: SharedMicEffects,
-    sample_rate: f32,
-    gate_envelope: f32,
-    high_pass_previous_input: f32,
-    high_pass_previous_output: f32,
-    low_pass_previous_output: f32,
+    simple: SimpleEffectsProcessor,
 }
 
 impl MicEffectsProcessor {
     pub fn new(effects: SharedMicEffects, sample_rate: u32) -> Self {
         Self {
             effects,
-            sample_rate: sample_rate as f32,
-            gate_envelope: 0.0,
-            high_pass_previous_input: 0.0,
-            high_pass_previous_output: 0.0,
-            low_pass_previous_output: 0.0,
+            simple: SimpleEffectsProcessor::new(sample_rate),
         }
     }
 
     pub fn process_sample(&mut self, mut sample: f32) -> f32 {
         let snapshot = self.effects.snapshot();
 
-        if snapshot.noise_gate_enabled {
-            sample = self.apply_noise_gate(sample, snapshot.noise_gate_threshold);
-        }
         if snapshot.high_pass_enabled {
-            sample = self.apply_high_pass(sample, snapshot.high_pass_cutoff_hz);
+            sample = self
+                .simple
+                .apply_high_pass(sample, snapshot.high_pass_cutoff_hz);
         }
         if snapshot.low_pass_enabled {
-            sample = self.apply_low_pass(sample, snapshot.low_pass_cutoff_hz);
+            sample = self
+                .simple
+                .apply_low_pass(sample, snapshot.low_pass_cutoff_hz);
         }
         if snapshot.saturation_enabled {
             sample = apply_saturation(sample, snapshot.saturation_drive);
@@ -156,75 +131,47 @@ impl MicEffectsProcessor {
 
         sample.clamp(-1.0, 1.0)
     }
-
-    fn apply_noise_gate(&mut self, sample: f32, threshold: f32) -> f32 {
-        let target = if sample.abs() >= threshold { 1.0 } else { 0.0 };
-        let coefficient = if target > self.gate_envelope {
-            0.08
-        } else {
-            0.003
-        };
-        self.gate_envelope += (target - self.gate_envelope) * coefficient;
-        sample * self.gate_envelope
-    }
-
-    fn apply_high_pass(&mut self, sample: f32, cutoff_hz: f32) -> f32 {
-        let cutoff_hz = cutoff_hz.clamp(20.0, self.sample_rate * 0.45);
-        let rc = 1.0 / (2.0 * PI * cutoff_hz);
-        let dt = 1.0 / self.sample_rate;
-        let alpha = rc / (rc + dt);
-        let output =
-            alpha * (self.high_pass_previous_output + sample - self.high_pass_previous_input);
-        self.high_pass_previous_input = sample;
-        self.high_pass_previous_output = output;
-        output
-    }
-
-    fn apply_low_pass(&mut self, sample: f32, cutoff_hz: f32) -> f32 {
-        let cutoff_hz = cutoff_hz.clamp(20.0, self.sample_rate * 0.45);
-        let rc = 1.0 / (2.0 * PI * cutoff_hz);
-        let dt = 1.0 / self.sample_rate;
-        let alpha = dt / (rc + dt);
-        self.low_pass_previous_output += alpha * (sample - self.low_pass_previous_output);
-        self.low_pass_previous_output
-    }
 }
 
 #[derive(Clone, Deserialize, Serialize)]
 pub struct MicEffectsConfig {
-    pub noise_gate: NoiseGateConfig,
+    #[serde(default = "default_high_pass_config")]
     pub high_pass: FilterConfig,
+    #[serde(default = "default_low_pass_config")]
     pub low_pass: FilterConfig,
+    #[serde(default = "default_saturation_config")]
     pub saturation: SaturationConfig,
 }
 
 impl Default for MicEffectsConfig {
     fn default() -> Self {
         Self {
-            noise_gate: NoiseGateConfig {
-                enabled: false,
-                threshold: DEFAULT_NOISE_GATE_THRESHOLD,
-            },
-            high_pass: FilterConfig {
-                enabled: false,
-                cutoff_hz: DEFAULT_HIGH_PASS_CUTOFF_HZ,
-            },
-            low_pass: FilterConfig {
-                enabled: false,
-                cutoff_hz: DEFAULT_LOW_PASS_CUTOFF_HZ,
-            },
-            saturation: SaturationConfig {
-                enabled: false,
-                drive: DEFAULT_SATURATION_DRIVE,
-            },
+            high_pass: default_high_pass_config(),
+            low_pass: default_low_pass_config(),
+            saturation: default_saturation_config(),
         }
     }
 }
 
-#[derive(Clone, Deserialize, Serialize)]
-pub struct NoiseGateConfig {
-    pub enabled: bool,
-    pub threshold: f32,
+fn default_high_pass_config() -> FilterConfig {
+    FilterConfig {
+        enabled: false,
+        cutoff_hz: DEFAULT_HIGH_PASS_CUTOFF_HZ,
+    }
+}
+
+fn default_low_pass_config() -> FilterConfig {
+    FilterConfig {
+        enabled: false,
+        cutoff_hz: DEFAULT_LOW_PASS_CUTOFF_HZ,
+    }
+}
+
+fn default_saturation_config() -> SaturationConfig {
+    SaturationConfig {
+        enabled: false,
+        drive: DEFAULT_SATURATION_DRIVE,
+    }
 }
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -237,11 +184,6 @@ pub struct FilterConfig {
 pub struct SaturationConfig {
     pub enabled: bool,
     pub drive: f32,
-}
-
-fn apply_saturation(sample: f32, drive: f32) -> f32 {
-    let drive = drive.max(1.0);
-    (sample * drive).tanh() / drive.tanh()
 }
 
 fn load_f32(value: &AtomicU32) -> f32 {
